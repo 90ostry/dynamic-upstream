@@ -50,6 +50,36 @@ local function read_current_value(conf)
 end
 
 
+local dump = function(...)
+  local info = debug.getinfo(2) or {}
+  local input = {n = select("#", ...), ...}
+  local write = require("pl.pretty").write
+  local serialized
+  if input.n == 1 and type(input[1]) == "table" then
+    serialized = "(" .. type(input[1]) .. "): " .. write(input[1])
+  elseif input.n == 1 then
+    serialized = "(" .. type(input[1]) .. "): " .. tostring(input[1]) .. "\n"
+  else
+    local n
+    n, input.n = input.n, nil
+    serialized = "(list, #" .. n .. "): " .. write(input)
+  end
+
+  ngx.log(
+    ngx.WARN,
+    "\027[31m\n",
+    "function '",
+    tostring(info.name),
+    ":",
+    tostring(info.currentline),
+    "' in '",
+    tostring(info.short_src),
+    "' wants you to know:\n",
+    serialized,
+    "\027[0m"
+  )
+end
+
 local function modify_upstream(host, port, uri)
   ngx.log(ngx.DEBUG, "modifying upstream ...")
 
@@ -70,7 +100,7 @@ function plugin:access(conf)
 
   local host = conf.upstream.host
   local port = conf.upstream.port
-  local uri = conf.upstream.uri
+  local uri = conf.upstream.path
 
   if conf.value_check.value_check_type == "equals" then
     if current_value == conf.value_check.value then
@@ -80,7 +110,7 @@ function plugin:access(conf)
   if conf.value_check.value_check_type == "exists" and current_value ~= nil then
     modify_upstream(host, port, uri)
   end
-  if conf.value_check.value_check_type == "missi  ng" and current_value == nil then
+  if conf.value_check.value_check_type == "missing" and current_value == nil then
     modify_upstream(host, port, uri)
   end
   if conf.value_check.value_check_type == "match expression" and conf.value_check.value ~= nil and current_value ~= nil and string.find(current_value, conf.value_check.value) then
